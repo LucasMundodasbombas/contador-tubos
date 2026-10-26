@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e2571b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tubos">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Contador de Tubos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: phone-first single column. Count band on top, photo stage in the middle, tool dock below, load log at the end. */
+:root{
+  --bg:#eef1f3; --panel:#ffffff; --ink:#17212b; --muted:#5b6873; --line:#d4dadf;
+  --accent:#e2571b; --accent-ink:#ffffff; --ok:#1f7a4d; --stage:#26313a;
+  --mark:#e2571b; --mark-manual:#1f7a4d;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12181d; --panel:#1b232a; --ink:#e7ecef; --muted:#97a3ad; --line:#2d3740;
+  --accent:#f26a2e; --accent-ink:#14100d; --ok:#4cc38a; --stage:#0b0f12; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12181d; --panel:#1b232a; --ink:#e7ecef; --muted:#97a3ad; --line:#2d3740;
+  --accent:#f26a2e; --accent-ink:#14100d; --ok:#4cc38a; --stage:#0b0f12; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 32px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:700;font-size:1.6rem;letter-spacing:.02em;margin:0;text-transform:uppercase;text-wrap:balance}
+.sub{color:var(--muted);font-size:.85rem;margin:0}
+.count{display:flex;align-items:baseline;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 16px}
+.count small{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.count b{font-family:var(--display);font-size:2.8rem;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}
+.count span{font-size:.8rem;color:var(--muted)}
+.stagewrap{position:relative;background:var(--stage);border-radius:10px;overflow:hidden}
+.stage{overflow:auto;max-height:68vh;-webkit-overflow-scrolling:touch}
+.stage canvas{display:block;width:100%;touch-action:pan-x pan-y}
+.stage.area canvas{touch-action:none;cursor:crosshair}
+.stage.add canvas{cursor:copy}
+.stage.del canvas{cursor:not-allowed}
+.busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(10,14,18,.55);color:#fff;font-family:var(--display);font-size:1.3rem;letter-spacing:.05em;text-transform:uppercase}
+.zoom{position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:2}
+.busy[hidden]{display:none}
+.zoom button{width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,.9);color:#17212b;font-size:1.2rem;font-weight:600}
+.dock{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.label{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 4px}
+button,.filebtn{font:inherit;font-weight:600;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:10px 14px;min-height:44px;cursor:pointer}
+button:focus-visible,.filebtn:focus-within,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media (max-width:440px){.modes{grid-template-columns:1fr 1fr}}
+.mode{padding-inline:6px}
+.mode[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filebtn{display:inline-flex;align-items:center;justify-content:center;position:relative}
+.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.sliders{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.sliders{grid-template-columns:1fr}}
+.sl label{display:flex;justify-content:space-between;font-size:.85rem;font-weight:500}
+.sl label output{color:var(--muted);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.hint{font-size:.85rem;color:var(--muted);margin:0}
+.check{display:flex;gap:8px;align-items:center;font-size:.9rem}
+.result img{width:100%;border-radius:8px;display:block}
+.log{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+.log h2{font-family:var(--display);text-transform:uppercase;letter-spacing:.04em;font-size:1.15rem;margin:0 0 8px}
+.log form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.log input[type=text]{flex:1 1 180px;min-width:0;font:inherit;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.log table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.log td,.log th{text-align:left;padding:7px 4px;border-top:1px solid var(--line);font-size:.9rem}
+.log th{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-top:none}
+.log td.n{font-family:var(--display);font-size:1.15rem;color:var(--accent);text-align:right}
+.log th.n{text-align:right}
+.tag{display:inline-block;font-size:.72rem;padding:2px 8px;border-radius:99px;background:var(--bg);border:1px solid var(--line);color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Contador de Tubos</h1>
+      <p class="sub" id="status">Preparando…</p>
+    </div>
+    <div class="count" aria-live="polite"><small>Tubos</small><b id="total">0</b><span id="breakdown"></span></div>
+  </header>
+
+  <div class="row">
+    <label class="filebtn primary" for="file">Tirar ou escolher foto<input id="file" type="file" accept="image/*"></label>
+    <button id="recount" type="button">Recontar</button>
+    <button id="save" type="button">Gerar imagem final</button>
+  </div>
+
+  <div class="stagewrap">
+    <div class="stage" id="stage"><canvas id="cv" width="10" height="10"></canvas></div>
+    <div class="zoom"><button id="zin" type="button" aria-label="Aproximar">+</button><button id="zout" type="button" aria-label="Afastar">−</button></div>
+    <div class="busy" id="busy">Carregando…</div>
+  </div>
+
+  <div class="dock">
+    <div>
+      <p class="label">Toque na foto para</p>
+      <div class="modes" role="group" aria-label="Modo">
+        <button class="mode" data-mode="view" aria-pressed="true" type="button">Só ver</button>
+        <button class="mode" data-mode="add" aria-pressed="false" type="button">＋ Adicionar</button>
+        <button class="mode" data-mode="del" aria-pressed="false" type="button">− Excluir</button>
+        <button class="mode" data-mode="area" aria-pressed="false" type="button">▭ Área</button>
+      </div>
+      <p class="hint" id="modehint">Use + e − para dar zoom. Escolha Adicionar ou Excluir para corrigir tubos que ficaram de fora ou foram marcados errado.</p>
+    </div>
+    <div class="sliders">
+      <div class="sl"><label for="sens">Sensibilidade <output id="sensv">50</output></label><input id="sens" type="range" min="0" max="100" value="50"></div>
+      <div class="sl"><label for="size">Tamanho do tubo <output id="sizev">auto</output></label><input id="size" type="range" min="-40" max="40" value="0"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="iso" checked> Ignorar círculos soltos fora da pilha</label>
+    <div class="row"><button id="clearArea" type="button">Limpar área</button><button id="clearManual" type="button">Desfazer correções</button></div>
+  </div>
+
+  <div class="result" id="result" hidden>
+    <p class="hint">Imagem final pronta. No celular, toque e segure a imagem para salvar ou compartilhar no WhatsApp.</p>
+    <img id="resultImg" alt="Foto com os tubos numerados">
+  </div>
+
+  <section class="log">
+    <h2>Cargas contadas</h2>
+    <form id="logform">
+      <input type="text" id="logname" placeholder="Identificação (placa, nota, fornecedor)" aria-label="Identificação da carga">
+      <button class="primary" type="submit">Registrar contagem</button>
+    </form>
+    <table><thead><tr><th>Data</th><th>Carga</th><th class="n">Tubos</th></tr></thead><tbody id="logbody"></tbody></table>
+    <p class="hint" id="logempty">Nenhuma carga registrada neste aparelho ainda. Depois de conferir a contagem, dê um nome e toque em Registrar.</p>
+  </section>
+</div>
+
+<script>window.EXAMPLE_SRC="exemplo.jpg";</script>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const cvEl=$('cv'), ctx=cvEl.getContext('2d'), stage=$('stage');
+const MAXW=1600;
+let img=null, W=0, H=0, r0=0, autoR=0;
+let auto=[], manual=[], removed=[];   // auto circles, manual adds, removed points
+let area=null, mode='view', zoom=1, ready=false, isExample=false;
+
+/* ---------- vision engine (pure JavaScript, no downloads) ---------- */
+// Gray image of a canvas region, contrast-stretched and lightly blurred.
+function prep(canvas, roi, scale){
+  const rx=roi?roi.x:0, ry=roi?roi.y:0, rw=roi?roi.w:canvas.width, rh=roi?roi.h:canvas.height;
+  const w=Math.max(8,Math.round(rw*scale)), h=Math.max(8,Math.round(rh*scale));
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const x=c.getContext('2d',{willReadFrequently:true}); x.imageSmoothingQuality='high';
+  x.drawImage(canvas,rx,ry,rw,rh,0,0,w,h);
+  const d=x.getImageData(0,0,w,h).data, n=w*h, g=new Float32Array(n), hist=new Uint32Array(256);
+  for(let i=0,j=0;i<n;i++,j+=4){ const v=(d[j]*77+d[j+1]*150+d[j+2]*29)>>8; g[i]=v; hist[v]++; }
+  // stretch so 1%..99% spans 0..255
+  let lo=0,hi=255,acc=0; for(;lo<255;lo++){acc+=hist[lo]; if(acc>n*0.01)break;}
+  acc=0; for(;hi>0;hi--){acc+=hist[hi]; if(acc>n*0.01)break;}
+  const k=255/Math.max(20,hi-lo);
+  const t=new Float32Array(n);
+  for(let i=0;i<n;i++) t[i]=Math.min(255,Math.max(0,(g[i]-lo)*k));
+  // 3x3 gaussian
+  for(let y=1;y<h-1;y++) for(let xx=1;xx<w-1;xx++){ const i=y*w+xx;
+    g[i]=(t[i-w-1]+2*t[i-w]+t[i-w+1]+2*t[i-1]+4*t[i]+2*t[i+1]+t[i+w-1]+2*t[i+w]+t[i+w+1])/16; }
+  return {g,w,h,ox:rx,oy:ry,s:scale};
+}
+// Canny edges (L1 Sobel, thresholds 80/40 like OpenCV HoughCircles) with unit gradient directions.
+function edges(P){
+  const {g,w,h}=P, n=w*h, gx=new Float32Array(n), gy=new Float32Array(n), m=new Float32Array(n);
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ const i=y*w+x;
+    const a=g[i-w-1],b=g[i-w],c=g[i-w+1],d=g[i-1],f=g[i+1],p=g[i+w-1],q=g[i+w],r=g[i+w+1];
+    const sx=(c+2*f+r)-(a+2*d+p), sy=(p+2*q+r)-(a+2*b+c); gx[i]=sx; gy[i]=sy; m[i]=Math.abs(sx)+Math.abs(sy); }
+  const HI=80, LO=40, st=new Uint8Array(n), stack=[];
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ const i=y*w+x, v=m[i]; if(v<=LO) continue;
+    const ax=Math.abs(gx[i]), ay=Math.abs(gy[i]); let n1,n2;
+    if(ay<=ax*0.4142){n1=m[i-1];n2=m[i+1];} else if(ay>=ax*2.4142){n1=m[i-w];n2=m[i+w];}
+    else if((gx[i]>0)===(gy[i]>0)){n1=m[i-w-1];n2=m[i+w+1];} else {n1=m[i-w+1];n2=m[i+w-1];}
+    if(v>n1&&v>=n2){ st[i]=1; if(v>HI){st[i]=2; stack.push(i);} } }
+  while(stack.length){ const i=stack.pop(); for(const o of [-w-1,-w,-w+1,-1,1,w-1,w,w+1]){ const j=i+o; if(st[j]===1){st[j]=2; stack.push(j);} } }
+  const xs=[], ys=[], dx=[], dy=[];
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ const i=y*w+x; if(st[i]!==2) continue;
+    const l=Math.hypot(gx[i],gy[i])||1; xs.push(x); ys.push(y); dx.push(gx[i]/l); dy.push(gy[i]/l); }
+  P.e={xs:Int32Array.from(xs),ys:Int32Array.from(ys),dx:Float32Array.from(dx),dy:Float32Array.from(dy),map:st};
+  return P;
+}
+// Hough gradient circle search for radius r (band 0.8r..1.25r); thr = votes needed; returns circles in full-image coords.
+function hough(P,r,thr){
+  const {w,h,e}=P, acc=new Float32Array(w*h), rmin=Math.max(2,Math.floor(r*0.8)), rmax=Math.ceil(r*1.25);
+  const N=e.xs.length;
+  for(let k=0;k<N;k++){ const x=e.xs[k], y=e.ys[k], ddx=e.dx[k], ddy=e.dy[k];
+    for(let sg=-1;sg<=1;sg+=2) for(let rr=rmin;rr<=rmax;rr++){
+      const cx=(x+sg*rr*ddx+0.5)|0, cy=(y+sg*rr*ddy+0.5)|0;
+      if(cx<0||cy<0||cx>=w||cy>=h) break; acc[cy*w+cx]++; } }
+  const cand=[];
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ const i=y*w+x, v=acc[i];
+    if(v>thr && v>acc[i-1] && v>=acc[i+1] && v>acc[i-w] && v>=acc[i+w]) cand.push(i); }
+  cand.sort((a,b)=>acc[b]-acc[a]);
+  const md2=(r*1.5)**2, out=[], grid=new Map(), cs=Math.ceil(r*1.5);
+  for(const i of cand){ const x=i%w, y=(i/w)|0, gxk=(x/cs)|0, gyk=(y/cs)|0; let ok=true;
+    for(let a=-1;a<=1&&ok;a++) for(let b=-1;b<=1&&ok;b++){ const L=grid.get((gxk+a)+','+(gyk+b)); if(L) for(const c of L){ if((c.x-x)**2+(c.y-y)**2<md2){ok=false;break;} } }
+    if(!ok) continue;
+    const c={x,y,v:acc[i]}; out.push(c); const key=gxk+','+gyk; (grid.get(key)||grid.set(key,[]).get(key)).push(c); }
+  // radius: peak of edge-distance histogram around each centre
+  const map=e.map;
+  for(const c of out){ const hist=new Float32Array(rmax+2);
+    for(let y=Math.max(0,c.y-rmax);y<=Math.min(h-1,c.y+rmax);y++) for(let x=Math.max(0,c.x-rmax);x<=Math.min(w-1,c.x+rmax);x++){
+      if(map[y*w+x]!==2) continue; const d=Math.round(Math.hypot(x-c.x,y-c.y)); if(d>=rmin&&d<=rmax) hist[d]+=1/d; }
+    let best=r, bv=-1; for(let d=rmin;d<=rmax;d++){ const v=hist[d-1]+hist[d]+hist[d+1]; if(v>bv){bv=v;best=d;} }
+    c.r=best; }
+  return out.map(c=>({x:c.x/P.s+P.ox, y:c.y/P.s+P.oy, r:c.r/P.s, v:c.v}));
+}
+function clusterFilter(cs,r,minNb){
+  let keep=cs.map(()=>true); const lim=(r*2.7)**2;
+  for(let it=0;it<3;it++){
+    keep=cs.map((a,i)=>{ if(!keep[i]) return false; let n=0;
+      for(let j=0;j<cs.length;j++){ if(j===i||!keep[j]) continue; const dx=a.x-cs[j].x, dy=a.y-cs[j].y; if(dx*dx+dy*dy<lim && ++n>=minNb) return true;}
+      return false;});
+  }
+  return cs.filter((_,i)=>keep[i]);
+}
+// Try many tube sizes on a small copy; the size that gives the biggest packed group wins.
+function estimateRadius(canvas,roi){
+  const rw=roi?roi.w:canvas.width, rh=roi?roi.h:canvas.height;
+  const s=Math.min(1,700/Math.max(rw,rh));
+  const P=edges(prep(canvas,roi,s));
+  const lim=Math.min(P.w,P.h)*0.12;
+  let best={n:-1,list:[],r:10};
+  for(let r=4;r<lim;r*=1.2){
+    const k=clusterFilter(hough(P,r,10+0.6*r),r/s,3);
+    if(k.length>best.n) best={n:k.length,list:k,r};
+  }
+  if(best.n<5) return Math.max(6,Math.min(rw,rh)*0.02);
+  const rs=best.list.map(c=>c.r).sort((a,b)=>a-b);
+  return 0.9*rs[rs.length>>1]; // the ring peak sits on the outer rim; pull in a little
+}
+
+/* ---------- detection ---------- */
+async function detect(reestimate){
+  if(!img) return;
+  setBusy('Contando tubos…');
+  await new Promise(r=>setTimeout(r,30));
+  try{
+    const base=document.createElement('canvas'); base.width=W; base.height=H; base.getContext('2d').drawImage(img,0,0,W,H);
+    const roi=area&&area.w>10&&area.h>10?{x:Math.round(area.x),y:Math.round(area.y),w:Math.round(area.w),h:Math.round(area.h)}:null;
+    const t0=performance.now();
+    if(reestimate||!autoR) autoR=estimateRadius(base,roi);
+    const f=Math.pow(1.5,(+$('size').value)/40);
+    r0=autoR*f;
+    const sc=Math.min(1,Math.max(0.2,13/r0));   // work at a scale where a tube is ~13 px radius
+    const P=edges(prep(base,roi,sc));
+    const k=1.8-1.1*(+$('sens').value)/100;
+    let cs=hough(P,r0*sc,r0*sc*k);
+    if($('iso').checked) cs=clusterFilter(cs,r0,2);
+    auto=cs;
+    $('sizev').textContent=Math.round(r0*2)+' px';
+    $('status').textContent=(isExample?'Foto de exemplo. ':'')+'Contado em '+((performance.now()-t0)/1000).toFixed(1)+' s. Confira e corrija se precisar.';
+  }catch(e){ $('status').textContent=e.message||String(e); }
+  setBusy(null); draw();
+}
+
+function current(){
+  const rr=(r0||10);
+  const list=auto.filter(a=>!removed.some(p=>Math.hypot(p.x-a.x,p.y-a.y)<a.r)).map(a=>({...a,m:false}));
+  return list.concat(manual.map(p=>({x:p.x,y:p.y,r:rr,m:true})));
+}
+function ordered(list){
+  const rr=r0||10; list.sort((a,b)=>a.y-b.y);
+  const rows=[]; let cur=[], y0=null;
+  for(const c of list){ if(y0===null||c.y-y0>rr*0.9){ if(cur.length) rows.push(cur); cur=[c]; y0=c.y;} else cur.push(c); }
+  if(cur.length) rows.push(cur);
+  return rows.flatMap(r=>r.sort((a,b)=>a.x-b.x));
+}
+
+/* ---------- drawing ---------- */
+function draw(target){
+  const c=target||cvEl, x=c.getContext('2d');
+  if(!img){return;}
+  c.width=W; c.height=H; x.drawImage(img,0,0,W,H);
+  const list=ordered(current());
+  const css=getComputedStyle(document.documentElement);
+  const colA=css.getPropertyValue('--mark').trim()||'#e2571b', colM=css.getPropertyValue('--mark-manual').trim()||'#1f7a4d';
+  if(area){ x.save(); x.fillStyle='rgba(0,0,0,.35)'; x.beginPath(); x.rect(0,0,W,H); x.rect(area.x,area.y,area.w,area.h); x.fill('evenodd'); x.strokeStyle='#fff'; x.setLineDash([8,6]); x.lineWidth=Math.max(2,W/500); x.strokeRect(area.x,area.y,area.w,area.h); x.restore(); }
+  list.forEach((p,i)=>{
+    const col=p.m?colM:colA;
+    x.lineWidth=Math.max(1.5,p.r*0.12); x.strokeStyle=col;
+    x.beginPath(); x.arc(p.x,p.y,p.r*0.95,0,Math.PI*2); x.stroke();
+    const n=String(i+1), fs=Math.max(8,p.r*(n.length>2?0.62:0.78));
+    x.fillStyle='rgba(255,255,255,.88)'; x.beginPath(); x.arc(p.x,p.y,p.r*0.62,0,Math.PI*2); x.fill();
+    x.fillStyle='#111'; x.font='600 '+fs+'px Barlow, Arial, sans-serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(n,p.x,p.y+fs*0.04);
+  });
+  if(target) { // stamp total on final image
+    const fs=Math.max(28,W/18), txt=list.length+' tubos';
+    x.font='700 '+fs+'px "Barlow Condensed", Arial, sans-serif'; const tw=x.measureText(txt).width;
+    x.fillStyle='rgba(0,0,0,.7)'; x.fillRect(0,0,tw+fs,fs*1.5); x.fillStyle='#fff'; x.textAlign='left'; x.textBaseline='middle'; x.fillText(txt,fs/2,fs*0.78);
+  }
+  if(!target){
+    $('total').textContent=list.length;
+    const nm=list.filter(p=>p.m).length, nr=removed.length;
+    $('breakdown').textContent=(nm||nr)?('+'+nm+' / −'+nr+' manual'):'';
+    cvEl.style.width=(100*zoom)+'%';
+  }
+}
+
+function setBusy(t){ $('busy').hidden=!t; if(t) $('busy').textContent=t; }
+
+/* ---------- load ---------- */
+function loadSrc(src,example){
+  const im=new Image();
+  im.onload=()=>{ const s=Math.min(1,MAXW/Math.max(im.naturalWidth,im.naturalHeight));
+    W=Math.round(im.naturalWidth*s); H=Math.round(im.naturalHeight*s); img=im; isExample=example;
+    auto=[];manual=[];removed=[];area=null;autoR=0;$('size').value=0;zoom=1;$('result').hidden=true;
+    draw(); detect(true); };
+  im.onerror=()=>{ $('status').textContent='Não consegui abrir essa imagem. Tente outra foto (JPG ou PNG).'; setBusy(null); };
+  im.src=src;
+}
+$('file').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return;
+  const url=URL.createObjectURL(f); loadSrc(url,false); e.target.value=''; });
+
+/* ---------- interaction ---------- */
+function toImg(ev){ const b=cvEl.getBoundingClientRect(); return {x:(ev.clientX-b.left)*W/b.width, y:(ev.clientY-b.top)*H/b.height}; }
+let down=null;
+cvEl.addEventListener('pointerdown',ev=>{ down={...toImg(ev),cx:ev.clientX,cy:ev.clientY,t:Date.now()};
+  if(mode==='area'){ cvEl.setPointerCapture(ev.pointerId); area={x:down.x,y:down.y,w:0,h:0}; } });
+cvEl.addEventListener('pointermove',ev=>{ if(!down||mode!=='area') return; const p=toImg(ev);
+  area={x:Math.min(p.x,down.x),y:Math.min(p.y,down.y),w:Math.abs(p.x-down.x),h:Math.abs(p.y-down.y)}; draw(); });
+cvEl.addEventListener('pointerup',ev=>{ if(!down) return; const d=down; down=null; const p=toImg(ev);
+  if(mode==='area'){ if(area&&area.w>20&&area.h>20){ setMode('view'); detect(true);} else {area=null; draw();} return; }
+  if(Math.hypot(ev.clientX-d.cx,ev.clientY-d.cy)>10||Date.now()-d.t>700) return; // was a scroll
+  if(mode==='add'){ manual.push(p); draw(); }
+  else if(mode==='del'){
+    const mi=manual.findIndex(m=>Math.hypot(m.x-p.x,m.y-p.y)<r0*1.1);
+    if(mi>=0) manual.splice(mi,1);
+    else { const a=auto.find(a=>Math.hypot(a.x-p.x,a.y-p.y)<a.r*1.1 && !removed.some(q=>Math.hypot(q.x-a.x,q.y-a.y)<a.r)); if(a) removed.push({x:a.x,y:a.y}); }
+    draw();
+  }
+});
+cvEl.addEventListener('pointercancel',()=>{down=null});
+
+const hints={view:'Use + e − para dar zoom. Escolha Adicionar ou Excluir para corrigir tubos que ficaram de fora ou foram marcados errado.',
+ add:'Toque no centro de cada tubo que ficou sem número. Marcações manuais aparecem em verde.',
+ del:'Toque num número para tirar a marcação (círculo errado, parede, chão).',
+ area:'Arraste um retângulo em volta da pilha de tubos. Só o que estiver dentro será contado.'};
+function setMode(m){ mode=m; document.querySelectorAll('.mode').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===m));
+  stage.className='stage '+(m==='view'?'':m); $('modehint').textContent=hints[m]; }
+document.querySelectorAll('.mode').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+$('zin').onclick=()=>{zoom=Math.min(5,zoom*1.5); draw();};
+$('zout').onclick=()=>{zoom=Math.max(1,zoom/1.5); draw();};
+let tmr; const later=()=>{clearTimeout(tmr); tmr=setTimeout(()=>detect(false),250);};
+$('sens').addEventListener('input',e=>{$('sensv').textContent=e.target.value; later();});
+$('size').addEventListener('input',later);
+$('iso').addEventListener('change',()=>detect(false));
+$('recount').onclick=()=>{removed=[];manual=[];detect(true);};
+$('clearArea').onclick=()=>{area=null;detect(true);};
+$('clearManual').onclick=()=>{manual=[];removed=[];draw();};
+$('save').onclick=()=>{ if(!img) return; const c=document.createElement('canvas'); draw(c);
+  $('resultImg').src=c.toDataURL('image/jpeg',0.9); $('result').hidden=false; $('result').scrollIntoView({behavior:'smooth',block:'start'}); };
+
+/* ---------- log (this device only) ---------- */
+const KEY='contador-tubos-log';
+function readLog(){ try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){return []} }
+function renderLog(){ const l=readLog(); $('logempty').hidden=l.length>0;
+  $('logbody').innerHTML=l.map(r=>'<tr><td>'+new Date(r.t).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+'</td><td>'+(r.name?r.name.replace(/[<>&]/g,''):'<span class="tag">sem nome</span>')+'</td><td class="n">'+r.n+'</td></tr>').join(''); }
+$('logform').addEventListener('submit',e=>{ e.preventDefault(); if(!img) return;
+  const l=readLog(); l.unshift({t:Date.now(),name:$('logname').value.trim()+(isExample?' (exemplo)':''),n:current().length});
+  try{localStorage.setItem(KEY,JSON.stringify(l.slice(0,200)))}catch(e){}
+  $('logname').value=''; renderLog(); });
+renderLog();
+
+/* ---------- start ---------- */
+window.addEventListener('error',e=>{ $('status').textContent='Erro: '+(e.message||'desconhecido'); setBusy(null); });
+ready=true; $('status').textContent='Pronto.'; loadSrc(window.EXAMPLE_SRC,true);
+window.__tubos={detect,current,get r0(){return r0}};
+})();
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}</script>
+</body>
+</html>
